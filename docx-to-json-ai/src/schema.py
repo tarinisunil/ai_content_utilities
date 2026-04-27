@@ -2,10 +2,15 @@ from pydantic import BaseModel, Field
 from typing import List
 
 
+class ContentBlock(BaseModel):
+    type: str  # "paragraph", "bullet", etc.
+    text: str
+
+
 class Section(BaseModel):
     heading: str = ""
-    content: str = ""
-    bullets: List[str] = Field(default_factory=list)
+    content: List[ContentBlock] = Field(default_factory=list)
+    type: str = "general"
 
 
 class DocumentSchema(BaseModel):
