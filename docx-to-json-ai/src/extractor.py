@@ -1,30 +1,55 @@
 import logging
-
 from docx import Document
 
 logger = logging.getLogger(__name__)
 
 
-def extract_text(docx_path):
-    logger.info("extract_text: opening document path=%s", docx_path)
+def extract_blocks(docx_path):
+    logger.info("extract_blocks: opening document path=%s", docx_path)
     doc = Document(docx_path)
-    total_paras = len(doc.paragraphs)
-    logger.debug("extract_text: total paragraphs in document=%d", total_paras)
 
-    text = []
+    blocks = []
     skipped_empty = 0
-    for para in doc.paragraphs:
-        stripped = para.text.strip()
-        if stripped:
-            text.append(stripped)
-        else:
-            skipped_empty += 1
 
-    joined = "\n".join(text)
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        style = para.style.name if para.style else ""
+
+        if not text:
+            skipped_empty += 1
+            continue
+
+        # --- Heading detection ---
+        if style.startswith("Heading"):
+            try:
+                level = int(style.split(" ")[1])
+            except (IndexError, ValueError):
+                level = 1  # fallback
+
+            blocks.append({
+                "type": "heading",
+                "text": text,
+                "level": level
+            })
+
+        # --- Bullet / list detection ---
+        elif "List" in style or "Bullet" in style:
+            blocks.append({
+                "type": "bullet",
+                "text": text
+            })
+
+        # --- Default paragraph ---
+        else:
+            blocks.append({
+                "type": "paragraph",
+                "text": text
+            })
+
     logger.info(
-        "extract_text: kept %d non-empty paragraphs, skipped %d empty, output length=%d chars",
-        len(text),
-        skipped_empty,
-        len(joined),
+        "extract_blocks: created %d blocks, skipped %d empty paragraphs",
+        len(blocks),
+        skipped_empty
     )
-    return joined
+
+    return blocks
