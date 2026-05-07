@@ -1,0 +1,11 @@
+{
+  "require_title": true,
+  "require_summary": true,
+  "min_sections": 5,
+  "min_depth": 2,
+  "allowed_types": [
+    "notes",
+    "report",
+    "other"
+  ]
+}

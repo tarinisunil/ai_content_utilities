@@ -1,0 +1,12 @@
+{
+  "require_title": true,
+  "require_summary": true,
+  "min_sections": 6,
+  "min_depth": 2,
+  "allowed_types": [
+    "proposal",
+    "report",
+    "article",
+    "other"
+  ]
+}

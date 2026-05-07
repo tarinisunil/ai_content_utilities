@@ -1,47 +1,96 @@
 import json
 import logging
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
 
-def build_prompt(sections_chunk):
+def _section_to_prompt_dict(sec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Reduce a section to the fields the LLM needs to see.
+    This keeps prompts smaller and more stable.
+    """
+    return {
+        "heading": sec.get("heading", ""),
+        "path": sec.get("path", []),
+        "level": sec.get("level", 1),
+        "type": sec.get("type", "general"),
+        "content": sec.get("content", []),
+        "keywords": sec.get("keywords", []),
+        "confidence": sec.get("confidence", 0.0),
+        "notes": sec.get("notes", []),
+    }
+
+
+def build_prompt(sections_chunk: List[Dict[str, Any]]) -> str:
+    """
+    Build a strict annotation prompt for one chunk of already-structured sections.
+
+    The model should:
+    - preserve structure
+    - classify sections
+    - extract keywords
+    - return confidence
+    - avoid rewriting or hallucinating content
+    """
+    prompt_payload = [_section_to_prompt_dict(sec) for sec in sections_chunk]
+
     return f"""
-You are improving already structured document sections.
+You are annotating already-structured document sections.
 
-Input:
-{json.dumps(sections_chunk, indent=2)}
+Input sections:
+{json.dumps(prompt_payload, indent=2, ensure_ascii=False)}
 
-Tasks:
-1. Improve clarity of content (rewrite text, keep same meaning)
-2. Extract 3-7 relevant keywords per section
-3. Assign a confidence score (0 to 1)
+Your job:
+1. Do NOT change the section hierarchy.
+2. Do NOT merge, split, or reorder sections.
+3. Do NOT rewrite content.
+4. For each section, assign:
+   - type: one of "intro", "methodology", "results", "conclusion", "other"
+   - keywords: 3 to 7 short keywords
+   - confidence: a number from 0 to 1
+   - notes: short notes only if the section is ambiguous or incomplete
 
-Return ONLY valid JSON in this format:
+Rules:
+- Preserve heading, path, level, and content exactly.
+- Keep the original content unchanged.
+- Tables may appear as content items with type "table", rows, and text.
+- Return ONLY valid JSON.
+- Return a JSON array with one object per input section.
+- Do not wrap the JSON in markdown fences.
+- Do not add explanatory text.
+
+Return this format:
 
 [
   {{
     "heading": "string",
+    "path": ["string"],
+    "level": 1,
+    "type": "intro",
     "content": [
       {{"type": "paragraph", "text": "string"}},
-      {{"type": "bullet", "text": "string"}}
+      {{"type": "bullet", "text": "string"}},
+      {{"type": "table", "text": "string", "rows": [["cell1", "cell2"]]}}
     ],
     "keywords": ["string"],
-    "confidence": 0.0
+    "confidence": 0.0,
+    "notes": ["string"]
   }}
 ]
-
-Rules:
-- Do NOT change section structure
-- Do NOT merge or split sections
-- Preserve order
-- Keep content concise
-- Output ONLY JSON (no explanation, no markdown)
 
 JSON:
 """
 
 
-def extract_json(output):
+def extract_json(output: str) -> Any:
+    """
+    Parse JSON from the model output.
+
+    Supports:
+    - raw JSON array/object
+    - JSON embedded in extra text
+    """
     logger.info("extract_json: attempting direct json.loads (output length=%d)", len(output))
     output = (output or "").strip()
 
@@ -49,7 +98,6 @@ def extract_json(output):
         parsed = json.loads(output)
         logger.info("extract_json: parsed full output as JSON successfully")
         return parsed
-
     except json.JSONDecodeError as e:
         logger.warning(
             "extract_json: direct parse failed at position %s: %s; trying substring extraction",
@@ -57,20 +105,29 @@ def extract_json(output):
             e.msg,
         )
 
-        start = output.find("[") 
+        # Prefer array extraction because the prompt returns a list
+        start = output.find("[")
         end = output.rfind("]")
 
-        if start == -1 or end == -1 or end <= start:
-            logger.error("extract_json: no JSON array found in model output")
-            raise ValueError("No JSON found") from e
+        if start != -1 and end != -1 and end > start:
+            fragment = output[start : end + 1]
+            logger.info(
+                "extract_json: found JSON array substring, length=%d, attempting parse",
+                len(fragment),
+            )
+            return json.loads(fragment)
 
-        fragment = output[start : end + 1]
+        # Fallback to object extraction if the model returned an object
+        start = output.find("{")
+        end = output.rfind("}")
 
-        logger.info(
-            "extract_json: found JSON-like substring, length=%d, attempting parse",
-            len(fragment),
-        )
+        if start != -1 and end != -1 and end > start:
+            fragment = output[start : end + 1]
+            logger.info(
+                "extract_json: found JSON object substring, length=%d, attempting parse",
+                len(fragment),
+            )
+            return json.loads(fragment)
 
-        parsed = json.loads(fragment)
-        logger.info("extract_json: substring parsed successfully")
-        return parsed
+        logger.error("extract_json: no JSON found in model output")
+        raise ValueError("No JSON found") from e

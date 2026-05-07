@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import time
@@ -10,12 +11,13 @@ logging.basicConfig(
 )
 
 from extractor import extract_blocks
-from structure import build_sections
+from structure import build_sections, flatten_sections, render_section_tree
 from chunker import chunk_sections
 from llm import generate_json
 from utils import build_prompt, extract_json
 from merger import merge_results
 from scorer import compute_confidence
+from finalizer import finalize_document, apply_final_metadata
 from schema import DocumentSchema
 
 logger = logging.getLogger(__name__)
@@ -50,13 +52,12 @@ def save_to_file(filename, content):
 
 def process_chunks(chunks):
     results = []
-    debug = "--debug" in sys.argv 
+    debug = "--debug" in sys.argv
 
     for i, chunk in enumerate(chunks):
         logger.info("Processing chunk %d/%d", i + 1, len(chunks))
 
         prompt = build_prompt(chunk)
-
         parsed = safe_generate(prompt)
 
         if debug:
@@ -82,35 +83,44 @@ def main():
         sys.exit(1)
 
     file_path = sys.argv[1]
+    debug = "--debug" in sys.argv
 
-    # --- Step 1 ---
+    # Step 1: extract blocks
     blocks = extract_blocks(file_path)
 
-    # --- Step 2 ---
-    sections = build_sections(blocks)
+    # Step 2: build hierarchical section tree
+    sections_tree = build_sections(blocks)
 
-    # --- Step 3 ---
-    chunks = chunk_sections(sections)
+    if debug:
+        print("\n=== SECTION TREE ===")
+        print(render_section_tree(sections_tree))
+        print("====================\n")
 
-    # --- Step 4 ---
+    # Step 3: flatten tree for chunking
+    flat_sections = flatten_sections(sections_tree)
+    chunks = chunk_sections(flat_sections)
+
+    # Step 4: LLM processing on chunks
     results = process_chunks(chunks)
 
-    # --- Step 5 ---
+    # Step 5: merge chunk outputs
     final_output = merge_results(results)
 
-    # --- Step 6 (NEW) ---
+    # Step 6: compute confidence
     original_text = " ".join(b.get("text", "") for b in blocks)
-
     final_output["confidence"] = compute_confidence(
         final_output["sections"],
         original_text
     )
 
-    # --- Step 7 (NEW) ---
+    # Step 7: document-level metadata pass
+    doc_meta = finalize_document(final_output)
+    final_output = apply_final_metadata(final_output, doc_meta)
+
+    # Step 8: validate
     validated = DocumentSchema(**final_output)
 
-    # --- Step 8 ---
-    import json
+    # Step 9: print output
     print(json.dumps(validated.model_dump(), indent=2, ensure_ascii=False))
 
     logger.info("Pipeline finished successfully")

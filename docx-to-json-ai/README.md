@@ -1,79 +1,432 @@
-# DOCX to JSON
+# 📄 Hierarchical Document Intelligence Pipeline
 
-Converts a `.docx` into structured JSON using **python-docx** for extraction and an LLM (via OpenRouter) to improve and normalize each chunk.
+A hybrid NLP + LLM pipeline for reconstructing document structure from DOCX files.
 
-## Python version
+This project extracts hierarchical sections, annotates them with semantic metadata, computes confidence scores, and visualizes the results through an interactive Streamlit interface.
 
-**Python 3.12.8** — tested on macOS.
+---
 
-## How it works
+# 🚀 Features
 
-1. **Extract** — Read the document as typed blocks: headings (with level), list/bullet lines, and paragraphs, based on Word styles.
-2. **Structure** — Group blocks into sections (a section starts at each heading; text before the first heading is under `"Introduction"`).
-3. **Chunk** — Pack sections into chunks (default max ~1500 characters of text per chunk) so the model can process long documents in multiple calls. Very large sections are sent as one chunk, with a warning in the logs.
-4. **LLM** — For each chunk, the model returns a JSON **array** of section objects (improved `content` blocks, optional keywords from the model). Each chunk is retried up to 3 times on failure, with a short delay between attempts.
-5. **Merge** — Concatenate chunk results into one object: all sections, a **deduplicated** list of `keywords` across chunks, plus title and `notes` when the model returns a document-shaped object.
-6. **Confidence** — A document-level `confidence` in the range 0–1 is computed in code from source coverage (and a small structural bonus). This **replaces** any merged confidence from earlier steps; see `src/scorer.py`.
+## ✅ Hierarchical Structure Reconstruction
+- Detects headings and section nesting
+- Rebuilds document hierarchy
+- Preserves section relationships
 
-Larger files use **more** LLM requests than a single end-to-end pass, so expect longer runs and more API usage than a one-shot pipeline.
+## ✅ Hybrid NLP + LLM Pipeline
+- Rule-based structure parsing
+- LLM-powered semantic annotation
+- Deterministic chunking + validation
 
-## Setup
+## ✅ Semantic Section Annotation
+Each section is enriched with:
+- section type
+- keywords
+- confidence
+- notes
 
-### 1. Create a virtual environment
+## ✅ Confidence Scoring
+Confidence is computed using:
+- text coverage
+- annotation quality
+- hierarchy quality
+- structural consistency
 
-```bash
-python3 -m venv venv
+## ✅ Table Extraction
+Supports:
+- DOCX tables
+- row serialization
+- table-aware chunking
+- table rendering in Streamlit
+
+## ✅ Interactive UI
+Streamlit dashboard includes:
+- document summary
+- hierarchy tree
+- section explorer
+- confidence heatmap
+- failure visualization
+- rendered tables
+
+## ✅ Evaluation Pipeline
+Includes:
+- sample documents
+- expected outputs
+- automated evaluation script
+
+---
+
+# 🧠 Why This Exists
+
+Most document parsers flatten everything into plain text.
+
+Real-world documents contain:
+- hierarchy
+- repeated sections
+- inconsistent bullets
+- missing headings
+- noisy formatting
+- tables
+
+This project explores how hybrid systems (rules + LLMs) can reconstruct document structure more reliably.
+
+---
+
+# 🏗️ Architecture
+
+```text
+DOCX
+  ↓
+Block Extraction
+  ↓
+Hierarchy Reconstruction
+  ↓
+Flatten + Chunk
+  ↓
+LLM Annotation
+  ↓
+Merge
+  ↓
+Confidence Scoring
+  ↓
+Document-Level Summary
+  ↓
+Interactive Visualization
 ```
 
-### 2. Activate it
+---
 
-```bash
-source venv/bin/activate
+# 📂 Project Structure
+
+```text
+project/
+│
+├── app.py
+├── ui.py
+├── extractor.py
+├── structure.py
+├── chunker.py
+├── merger.py
+├── scorer.py
+├── finalizer.py
+├── schema.py
+├── utils.py
+├── llm.py
+├── evaluate.py
+│
+├── samples/
+│
+├── README.md
+├── requirements.txt
+
 ```
 
-### 3. Install dependencies
+---
+
+# 📄 File-by-File Breakdown
+
+## `app.py`
+Main CLI pipeline.
+
+Responsible for:
+1. extracting document blocks
+2. reconstructing hierarchy
+3. chunking sections
+4. LLM annotation
+5. merging results
+6. confidence scoring
+7. final document summarization
+8. schema validation
+
+Run:
 
 ```bash
-pip install --upgrade pip
+python app.py samples/sample1.docx
+```
+
+Debug mode:
+
+```bash
+python app.py samples/sample1.docx --debug
+```
+
+---
+
+## `ui.py`
+Interactive Streamlit application.
+
+Features:
+- document upload
+- hierarchy tree viewer
+- section explorer
+- confidence heatmap
+- failure diagnostics
+- structured JSON viewer
+- rendered table visualization
+
+Run:
+
+```bash
+streamlit run ui.py
+```
+
+---
+
+## `extractor.py`
+Extracts raw document blocks from DOCX files.
+
+Detects:
+- headings
+- bullets
+- paragraphs
+- tables
+- soft headings (heuristic)
+
+---
+
+## `structure.py`
+Builds hierarchical section trees.
+
+Handles:
+- heading nesting
+- recursive structure
+- tree rendering
+- flattening for chunking
+
+---
+
+## `chunker.py`
+Creates token-safe section chunks.
+
+Preserves:
+- hierarchy paths
+- section boundaries
+- section metadata
+- serialized table content
+
+---
+
+## `utils.py`
+Prompt construction + JSON extraction utilities.
+
+Handles:
+- strict annotation prompts
+- malformed JSON recovery
+- parsing safeguards
+
+---
+
+## `llm.py`
+LLM interface layer.
+
+Uses:
+- OpenRouter
+- OpenAI-compatible API
+- deterministic generation settings
+
+---
+
+## `merger.py`
+Combines chunk-level outputs into a unified document.
+
+Handles:
+- keyword merging
+- confidence aggregation
+- metadata normalization
+
+---
+
+## `scorer.py`
+Computes document confidence scores.
+
+Signals include:
+- coverage
+- hierarchy depth
+- annotation quality
+- section confidence
+
+---
+
+## `finalizer.py`
+Runs a final document-level LLM pass.
+
+Generates:
+- title
+- summary
+- document type
+- global keywords
+
+---
+
+## `schema.py`
+Pydantic schemas for:
+- content blocks
+- sections
+- hierarchical documents
+- table-aware blocks
+
+---
+
+## `evaluate.py`
+Automated evaluation script.
+
+Validates:
+- hierarchy depth
+- section count
+- summary generation
+- document classification
+
+Run:
+
+```bash
+python evaluate.py
+```
+
+---
+
+# 🧪 Sample Documents
+
+The `samples/` folder contains:
+- clean research-style documents
+- engineering proposals
+- meeting notes
+- intentionally messy documents
+- table-heavy documents
+
+These are used for evaluation and failure testing.
+
+---
+
+# ⚙️ Installation
+
+## 1. Clone the repo
+
+```bash
+git clone <repo-url>
+cd <repo-name>
+```
+
+---
+
+## 2. Create virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Activate:
+
+### macOS/Linux
+
+```bash
+source .venv/bin/activate
+```
+
+### Windows
+
+```bash
+.venv\Scripts\activate
+```
+
+---
+
+## 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 4. OpenRouter (LLM)
+---
 
-This project uses OpenRouter for inference. In the project root, create a `.env` file:
+## 4. Configure environment variables
 
-```bash
-OPENROUTER_API_KEY=your_openrouter_api_key
+Create `.env`
+
+```env
+OPENROUTER_API_KEY=your_key_here
 ```
 
-## Run
+---
+
+# 🚀 Running the Project
+
+## CLI Mode
 
 ```bash
-python src/app.py path/to/your.docx
+python app.py samples/sample1.docx
 ```
 
-**Debug mode** (writes prompts and raw parsed outputs, appended, with separators — useful for troubleshooting):
+---
+
+## Interactive UI
 
 ```bash
-python src/app.py path/to/your.docx --debug
+streamlit run ui.py
 ```
 
-In debug mode, the app creates or appends to `debug_prompt.txt` and `debug_output.txt` in the **current working directory**. Remove or add those files to `.gitignore` if you do not want them in version control.
+---
 
-**Notes**
+## Evaluation Suite
 
-- `python src/app.py` — Print JSON to **stdout**; use shell redirection to save, e.g. `python src/app.py input/sample.docx > out.json`
-- If you also use Conda, deactivate the Conda env before using this project’s venv: `conda deactivate`, then `source venv/bin/activate`
-- When done: `deactivate`
+```bash
+python evaluate.py
+```
 
-## Output (shape)
+---
 
-Printed JSON is a **single object** validated with Pydantic:
+# 📊 Example Output
 
-- **`title`**
-- **`sections`** — each has **`heading`**, **`type`** (e.g. `"general"`), and **`content`**: a list of **content blocks**, each with **`type`** (e.g. `paragraph` / `bullet`) and **`text`**
-- **`keywords`** — merged, deduplicated list from model output across chunks
-- **`notes`** — combined when present from merged dict-shaped responses
-- **`confidence`** — final document score in `[0, 1]` (from the scorer in `app.py`, not the model’s per-section or merge-only averages)
+```json
+{
+  "heading": "Methodology",
+  "type": "methodology",
+  "keywords": [
+    "chunking",
+    "hierarchy",
+    "llm"
+  ],
+  "confidence": 0.89
+}
+```
 
-For the exact model, see `src/schema.py`.
+---
+
+# ⚠️ Known Limitations
+
+- DOCX only (currently)
+- no PDF support yet
+- soft heading heuristics can fail
+- repeated headings remain challenging
+- tables do not yet preserve styling or merged cells
+
+---
+
+# 🚀 Future Work
+
+Planned upgrades:
+- PDF support
+- advanced table extraction
+- entity recognition
+- layout-aware parsing
+- vector search / RAG
+- graph-based document representation
+- tree-preserving merge pipeline
+
+---
+
+# 📜 License
+
+Apache License 2.0
+
+---
+
+# 🧠 Key Idea
+
+This project intentionally avoids letting the LLM do everything.
+
+Instead:
+- rules reconstruct structure
+- LLMs enrich semantics
+- scoring estimates reliability
+
+The goal is reliable document understanding, not just text extraction.

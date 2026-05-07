@@ -1,38 +1,77 @@
 import logging
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
 
-def section_to_text(sec):
-    """
-    Convert a section into plain text for size estimation.
-    """
-    parts = []
+def section_to_text(sec: Dict[str, Any]) -> str:
+    parts: List[str] = []
 
-    # Add heading
-    if sec.get("heading"):
-        parts.append(sec["heading"])
+    path = sec.get("path") or []
+    if path:
+        parts.append(" > ".join(path))
 
-    # Add content
+    heading = sec.get("heading", "")
+    if heading and (not path or path[-1] != heading):
+        parts.append(heading)
+
     for item in sec.get("content", []):
-        if isinstance(item, dict):
-            parts.append(item.get("text", ""))
+        if not isinstance(item, dict):
+            text = str(item).strip()
+            if text:
+                parts.append(text)
+            continue
+
+        item_type = item.get("type", "paragraph")
+
+        if item_type == "table":
+            rows = item.get("rows", [])
+            if rows:
+                rendered_rows = []
+                for row in rows:
+                    if isinstance(row, list):
+                        rendered_rows.append(" | ".join(str(cell).strip() for cell in row))
+                table_text = "\n".join(rendered_rows).strip()
+                if table_text:
+                    parts.append("[TABLE]")
+                    parts.append(table_text)
+            else:
+                text = (item.get("text") or "").strip()
+                if text:
+                    parts.append("[TABLE]")
+                    parts.append(text)
         else:
-            parts.append(str(item))
+            text = (item.get("text") or "").strip()
+            if text:
+                parts.append(text)
 
-    return " ".join(parts)
+    return "\n".join(parts).strip()
 
 
-def chunk_sections(sections, max_chars=1500):
-    chunks = []
-    current_chunk = []
+def section_size(sec: Dict[str, Any]) -> int:
+    """
+    Return approximate size of a section in characters.
+    """
+    return len(section_to_text(sec))
+
+
+def chunk_sections(sections: List[Dict[str, Any]], max_chars: int = 1500) -> List[List[Dict[str, Any]]]:
+    """
+    Group flattened sections into chunks without splitting a section.
+
+    Rules:
+    - Keep each section intact.
+    - Start a new chunk when adding the next section would exceed max_chars.
+    - If one section is larger than max_chars, put it alone in a chunk.
+    """
+    chunks: List[List[Dict[str, Any]]] = []
+    current_chunk: List[Dict[str, Any]] = []
     current_size = 0
 
     for sec in sections:
-        sec_text = section_to_text(sec)
-        sec_len = len(sec_text)
+        sec_len = section_size(sec)
 
-        # --- Handle oversized section ---
+        # Oversized section: isolate it in its own chunk
         if sec_len > max_chars:
             logger.warning(
                 "chunk_sections: section too large (%d chars), forcing single-section chunk",
@@ -47,19 +86,54 @@ def chunk_sections(sections, max_chars=1500):
             chunks.append([sec])
             continue
 
-        # --- Check if adding exceeds limit ---
-        if current_size + sec_len > max_chars:
+        # Start a new chunk if needed
+        if current_chunk and current_size + sec_len > max_chars:
             chunks.append(current_chunk)
             current_chunk = []
             current_size = 0
 
-        # --- Add section ---
         current_chunk.append(sec)
         current_size += sec_len
 
-    # --- (last chunk) ---
     if current_chunk:
         chunks.append(current_chunk)
 
     logger.info("chunk_sections: created %d chunks", len(chunks))
     return chunks
+
+
+def chunk_to_text(chunk: List[Dict[str, Any]]) -> str:
+    """
+    Optional helper for debugging or logging.
+    Converts a chunk into readable text with section metadata.
+    """
+    lines: List[str] = []
+
+    for i, sec in enumerate(chunk, start=1):
+        path = sec.get("path") or []
+        heading = sec.get("heading", "")
+        level = sec.get("level", 1)
+        sec_type = sec.get("type", "general")
+
+        lines.append(f"[Section {i}]")
+        if path:
+            lines.append(f"Path: {' > '.join(path)}")
+        else:
+            lines.append(f"Heading: {heading}")
+        lines.append(f"Level: {level}")
+        lines.append(f"Type: {sec_type}")
+
+        for item in sec.get("content", []):
+            if isinstance(item, dict):
+                text = (item.get("text") or "").strip()
+                item_type = item.get("type", "paragraph")
+                if text:
+                    lines.append(f"- ({item_type}) {text}")
+            else:
+                text = str(item).strip()
+                if text:
+                    lines.append(f"- {text}")
+
+        lines.append("")
+
+    return "\n".join(lines).strip()
