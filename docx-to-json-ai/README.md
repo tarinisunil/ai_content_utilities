@@ -279,7 +279,7 @@ Validates:
 Run:
 
 ```bash
-python evaluate.py
+python src/evaluate.py
 ```
 
 ---
