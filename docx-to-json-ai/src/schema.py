@@ -12,6 +12,11 @@ class ContentBlock(BaseModel):
     source: str = ""
 
 
+class ContentBlock(BaseModel):
+    type: str  # "paragraph", "bullet", etc.
+    text: str
+
+
 class Section(BaseModel):
     heading: str = ""
     level: int = 1

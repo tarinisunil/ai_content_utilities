@@ -98,6 +98,7 @@ def extract_json(output: str) -> Any:
         parsed = json.loads(output)
         logger.info("extract_json: parsed full output as JSON successfully")
         return parsed
+
     except json.JSONDecodeError as e:
         logger.warning(
             "extract_json: direct parse failed at position %s: %s; trying substring extraction",
