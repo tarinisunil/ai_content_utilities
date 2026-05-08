@@ -1,20 +1,22 @@
 import json
+import logging
 import tempfile
-from typing import Any, Dict, List
 import time
 import traceback
-import logging
+from typing import Any, Dict, List
+
 import pandas as pd
 import streamlit as st
 
-from extractor import extract_blocks
-from structure import build_sections, flatten_sections, render_section_tree
 from chunker import chunk_sections
-from utils import build_prompt, extract_json
+from extractor import extract_blocks
+from finalizer import apply_final_metadata, finalize_document
 from llm import generate_json
 from merger import merge_results
 from scorer import compute_confidence
-from finalizer import finalize_document, apply_final_metadata
+from structure import build_sections, flatten_sections, render_section_tree
+from utils import build_prompt, extract_json
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,28 @@ st.set_page_config(
 )
 
 st.title("📄 Hierarchical Document Intelligence Pipeline")
+
+
+def run_step(name: str, fn):
+    """
+    Run a pipeline step with timing + Streamlit logging.
+    """
+    start = time.perf_counter()
+    logger.info("%s started", name)
+    st.write(f"Running: {name}...")
+
+    try:
+        result = fn()
+        elapsed = time.perf_counter() - start
+        logger.info("%s finished in %.2fs", name, elapsed)
+        st.write(f"Done: {name} ({elapsed:.2f}s)")
+        return result
+    except Exception:
+        elapsed = time.perf_counter() - start
+        logger.exception("%s failed after %.2fs", name, elapsed)
+        st.error(f"{name} failed after {elapsed:.2f}s")
+        st.code(traceback.format_exc())
+        raise
 
 
 def safe_generate(prompt: str, retries: int = 3) -> Any:
@@ -59,7 +83,7 @@ def process_chunks(chunks: List[List[Dict[str, Any]]]) -> List[Any]:
 
 def collect_sections_recursive(sections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Return a flat list of all sections, including nested children if present.
+    Return a flat list of all sections in preorder, including nested children.
     """
     flat = []
 
@@ -103,9 +127,16 @@ def count_content_items(sec: Dict[str, Any]) -> int:
 
 
 def build_section_table(sections: List[Dict[str, Any]]) -> pd.DataFrame:
-    rows = []
+    """
+    Build a flat table view of all sections.
 
-    for idx, sec in enumerate(collect_sections_recursive(sections), start=1):
+    section_idx is the stable index used to retrieve the exact section in the
+    explorer, avoiding path-based collisions.
+    """
+    rows = []
+    flat_sections = collect_sections_recursive(sections)
+
+    for idx, sec in enumerate(flat_sections):
         kws = sec.get("keywords", [])
         if not isinstance(kws, list):
             kws = []
@@ -114,14 +145,19 @@ def build_section_table(sections: List[Dict[str, Any]]) -> pd.DataFrame:
         if not isinstance(notes, list):
             notes = []
 
+        path = section_path(sec)
+        sec_type = sec.get("type", "general")
+        conf = round(section_confidence(sec), 2)
+
         rows.append(
             {
-                "#": idx,
-                "path": section_path(sec),
+                "section_idx": idx,
+                "display": f"[{idx}] {path} | {sec_type} | conf {conf:.2f}",
+                "path": path,
                 "heading": sec.get("heading", ""),
                 "level": section_level(sec),
-                "type": sec.get("type", "general"),
-                "confidence": round(section_confidence(sec), 2),
+                "type": sec_type,
+                "confidence": conf,
                 "keywords": len(kws),
                 "content_items": count_content_items(sec),
                 "notes": len(notes),
@@ -185,45 +221,39 @@ def confidence_bucket(conf: float) -> str:
     return "Low"
 
 
-def render_confidence_heatmap(section_df: pd.DataFrame) -> None:
+def confidence_bar(conf: float, width: int = 10) -> str:
+    filled = max(0, min(width, int(round(conf * width))))
+    return "█" * filled + "░" * (width - filled)
+
+
+def render_confidence_overview(section_df: pd.DataFrame) -> None:
     if section_df.empty:
-        st.info("No sections available for heatmap.")
+        st.info("No sections available for confidence overview.")
         return
 
-    heat_df = section_df.copy()
-    heat_df["confidence_bucket"] = heat_df["confidence"].apply(confidence_bucket)
+    view_df = section_df.copy()
+    view_df["bucket"] = view_df["confidence"].apply(confidence_bucket)
+    view_df["bar"] = view_df["confidence"].apply(confidence_bar)
 
-    styled = (
-        heat_df[["path", "heading", "level", "type", "confidence", "confidence_bucket", "keywords", "notes"]]
-        .style
-        .background_gradient(subset=["confidence"], cmap="YlOrRd")
-        .format({"confidence": "{:.2f}"})
+    st.dataframe(
+        view_df[
+            [
+                "display",
+                "level",
+                "type",
+                "confidence",
+                "bucket",
+                "bar",
+                "keywords",
+                "notes",
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
     )
 
-    st.dataframe(styled, use_container_width=True, hide_index=True)
-
-def run_step(name, fn):
-    start = time.perf_counter()
-    logger.info("%s started", name)
-    st.write(f"Running: {name}...")
-
-    try:
-        result = fn()
-        elapsed = time.perf_counter() - start
-        logger.info("%s finished in %.2fs", name, elapsed)
-        st.write(f"Done: {name} ({elapsed:.2f}s)")
-        return result
-    except Exception as e:
-        elapsed = time.perf_counter() - start
-        logger.exception("%s failed after %.2fs", name, elapsed)
-        st.error(f"{name} failed after {elapsed:.2f}s")
-        st.code(traceback.format_exc())
-        raise
 
 def render_section_content(section: Dict[str, Any]) -> None:
-    """
-    Render paragraphs, bullets, and tables for the selected section.
-    """
     content = section.get("content", [])
     if not isinstance(content, list) or not content:
         st.info("This section has no content.")
@@ -295,48 +325,27 @@ if uploaded:
 
     st.info("Running pipeline...")
 
-    # Step 1
     blocks = run_step("extract_blocks", lambda: extract_blocks(docx_path))
-
-
-    # Step 2
     sections_tree = run_step("build_sections", lambda: build_sections(blocks))
-
-
-    # Step 3
     flat_sections = run_step("flatten_sections", lambda: flatten_sections(sections_tree))
-
     chunks = run_step("chunk_sections", lambda: chunk_sections(flat_sections))
-
-
-    # Step 4
     results = run_step("process_chunks", lambda: process_chunks(chunks))
-
-
-    # Step 5
     final_output = run_step("merge_results", lambda: merge_results(results))
 
-
-    # Step 6
     original_text = " ".join(b.get("text", "") for b in blocks)
     final_output["confidence"] = run_step(
-    "compute_confidence",
-    lambda: compute_confidence(final_output["sections"], original_text),
-)
+        "compute_confidence",
+        lambda: compute_confidence(final_output["sections"], original_text),
+    )
 
-
-    # Step 7
     metadata = run_step("finalize_document", lambda: finalize_document(final_output))
     final_output = apply_final_metadata(final_output, metadata)
 
     section_df = build_section_table(final_output.get("sections", []))
     issues = detect_failures(final_output, section_df)
+    flat_sections = collect_sections_recursive(final_output.get("sections", []))
 
-    # =========================
-    # Top summary
-    # =========================
     c1, c2, c3, c4 = st.columns(4)
-
     c1.metric("Confidence", f"{final_output.get('confidence', 0.0):.2f}")
     c2.metric("Section count", f"{len(section_df)}")
     c3.metric("Doc type", final_output.get("document_type", "unknown"))
@@ -362,27 +371,20 @@ if uploaded:
 
     st.divider()
 
-    # =========================
-    # Section Explorer
-    # =========================
     st.subheader("🧭 Section Explorer")
 
     if section_df.empty:
         st.info("No sections to explore.")
     else:
-        options = list(range(len(section_df)))
-        labels = [
-            f"{row['path']}  |  {row['type']}  |  conf {row['confidence']:.2f}"
-            for _, row in section_df.iterrows()
-        ]
-
-        selected_idx = st.selectbox(
+        selected_display = st.selectbox(
             "Choose a section",
-            options=options,
-            format_func=lambda i: labels[i],
+            options=section_df["display"].tolist(),
+            key="section_explorer",
         )
 
-        selected = section_df.iloc[selected_idx].to_dict()
+        selected_row = section_df[section_df["display"] == selected_display].iloc[0]
+        selected = selected_row.to_dict()
+        matched = flat_sections[int(selected["section_idx"])]
 
         col_a, col_b = st.columns([1, 1])
 
@@ -397,33 +399,15 @@ if uploaded:
             st.markdown(f"**Content items:** {int(selected['content_items'])}")
 
         with col_b:
-            matched = next(
-                (
-                    sec
-                    for sec in collect_sections_recursive(final_output.get("sections", []))
-                    if section_path(sec) == selected["path"]
-                ),
-                None,
-            )
-
-            if matched:
-                render_section_content(matched)
-            else:
-                st.info("Detailed section object not found.")
+            render_section_content(matched)
 
     st.divider()
 
-    # =========================
-    # Confidence Heatmap
-    # =========================
-    st.subheader("🔥 Confidence Heatmap")
-    render_confidence_heatmap(section_df)
+    st.subheader("🔥 Confidence Overview")
+    render_confidence_overview(section_df)
 
     st.divider()
 
-    # =========================
-    # Failure Visualization
-    # =========================
     st.subheader("⚠️ Failure Visualization")
 
     if issues:
@@ -443,7 +427,7 @@ if uploaded:
                 st.write("None")
             else:
                 st.dataframe(
-                    low_df[["path", "heading", "type", "confidence", "keywords", "notes"]],
+                    low_df[["display", "heading", "type", "confidence", "keywords", "notes"]],
                     use_container_width=True,
                     hide_index=True,
                 )
