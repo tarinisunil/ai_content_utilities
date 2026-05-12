@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import subprocess
@@ -17,13 +18,17 @@ def load_expected(path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def run_pipeline(docx_path: str) -> Dict[str, Any]:
+def run_pipeline(docx_path: str, provider: str | None = None) -> Dict[str, Any]:
     """
     Run the main pipeline and parse its JSON stdout.
     Assumes app.py prints final JSON only at the end.
     """
+    cmd = [sys.executable, str(APP_PATH), str(docx_path)]
+    if provider:
+        cmd.extend(["--provider", provider])
+
     result = subprocess.run(
-        [sys.executable, str(APP_PATH), str(docx_path)],
+        cmd,
         capture_output=True,
         text=True,
         cwd=str(SCRIPT_DIR),
@@ -80,9 +85,9 @@ def compute_depth(sections: List[Dict[str, Any]]) -> int:
     return deepest
 
 
-def evaluate_one(docx_path: str, expected_path: str) -> Dict[str, Any]:
+def evaluate_one(docx_path: str, expected_path: str, provider: str | None = None) -> Dict[str, Any]:
     expected = load_expected(expected_path)
-    output = run_pipeline(docx_path)
+    output = run_pipeline(docx_path, provider=provider)
 
     sections = output.get("sections", [])
     depth = compute_depth(sections)
@@ -130,7 +135,14 @@ def evaluate_one(docx_path: str, expected_path: str) -> Dict[str, Any]:
     }
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate the DOCX pipeline on sample files")
+    parser.add_argument("--provider", choices=["openrouter", "ollama"], default=None)
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     rows = []
 
     if not SAMPLES_DIR.exists():
@@ -147,7 +159,7 @@ def main():
             print(f"Skipping {name}: missing expected file")
             continue
 
-        row = evaluate_one(str(docx_path), str(expected_path))
+        row = evaluate_one(str(docx_path), str(expected_path), provider=args.provider)
         rows.append(row)
 
     print(json.dumps(rows, indent=2))

@@ -1,6 +1,6 @@
+import argparse
 import json
 import logging
-import sys
 import time
 
 # Configure logging
@@ -13,7 +13,7 @@ logging.basicConfig(
 from extractor import extract_blocks
 from structure import build_sections, flatten_sections, render_section_tree
 from chunker import chunk_sections
-from llm import generate_json
+from llm import generate_json, configure_provider
 from utils import build_prompt, extract_json
 from merger import merge_results
 from scorer import compute_confidence
@@ -50,9 +50,8 @@ def save_to_file(filename, content):
         f.write("\n\n" + "=" * 80 + "\n\n")
 
 
-def process_chunks(chunks):
+def process_chunks(chunks, debug: bool = False):
     results = []
-    debug = "--debug" in sys.argv
 
     for i, chunk in enumerate(chunks):
         logger.info("Processing chunk %d/%d", i + 1, len(chunks))
@@ -78,12 +77,28 @@ def process_chunks(chunks):
 def main():
     logger.info("Starting structured docx pipeline")
 
-    if len(sys.argv) < 2:
-        logger.error("Missing required argument: path to .docx file")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Docx to JSON pipeline")
+    parser.add_argument("docx", help="Path to .docx file")
+    parser.add_argument(
+        "--provider",
+        choices=["openrouter", "ollama"],
+        default=None,
+        help="LLM provider (overrides LLM_PROVIDER env var)",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model ID for the chosen provider",
+    )
+    parser.add_argument("--debug", action="store_true", help="Save prompts and outputs to debug files")
+    args = parser.parse_args()
 
-    file_path = sys.argv[1]
-    debug = "--debug" in sys.argv
+    if args.provider:
+        configure_provider(args.provider, args.model)
+        logger.info("Provider overridden via CLI: %s", args.provider)
+
+    file_path = args.docx
+    debug = args.debug
 
     # Step 1: extract blocks
     blocks = extract_blocks(file_path)
@@ -101,7 +116,7 @@ def main():
     chunks = chunk_sections(flat_sections)
 
     # Step 4: LLM processing on chunks
-    results = process_chunks(chunks)
+    results = process_chunks(chunks, debug=debug)
 
     # Step 5: merge chunk outputs
     final_output = merge_results(results)

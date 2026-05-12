@@ -1,0 +1,7 @@
+{
+  "require_title": true,
+  "require_summary": true,
+  "min_sections": 8,
+  "min_depth": 2,
+  "allowed_types": ["executive_summary", "financial", "risk", "conclusion", "general"]
+}

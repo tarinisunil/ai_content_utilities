@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,50 @@ def chunk_sections(sections: List[Dict[str, Any]], max_chars: int = 1500) -> Lis
 
     logger.info("chunk_sections: created %d chunks", len(chunks))
     return chunks
+
+
+def chunk_naive_blocks(blocks: List[Dict[str, Any]], max_chars: int = 1500) -> List[List[Dict[str, Any]]]:
+    """
+    Group raw document blocks into chunks by character count, ignoring structure.
+    Used as the naive baseline for retrieval comparison.
+    """
+    chunks: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    current_size = 0
+
+    for block in blocks:
+        size = len(block.get("text", "") or "")
+        if current and current_size + size > max_chars:
+            chunks.append(current)
+            current, current_size = [], 0
+        current.append(block)
+        current_size += size
+
+    if current:
+        chunks.append(current)
+
+    logger.info("chunk_naive_blocks: created %d chunks", len(chunks))
+    return chunks
+
+
+def _item_char_size(item: Dict[str, Any]) -> int:
+    """Character size of any item — works for both raw blocks and sections."""
+    if "content" in item or "path" in item:
+        return section_size(item)
+    return len(item.get("text", "") or "")
+
+
+def chunk_stats(chunks: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """Return summary statistics for a list of chunks (naive or hierarchical)."""
+    if not chunks:
+        return {"count": 0, "avg_size": 0, "min_size": 0, "max_size": 0}
+    sizes = [sum(_item_char_size(item) for item in chunk) for chunk in chunks]
+    return {
+        "count": len(chunks),
+        "avg_size": int(sum(sizes) / len(sizes)),
+        "min_size": min(sizes),
+        "max_size": max(sizes),
+    }
 
 
 def chunk_to_text(chunk: List[Dict[str, Any]]) -> str:

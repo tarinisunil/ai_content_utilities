@@ -8,12 +8,14 @@ from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 
-from chunker import chunk_sections
+from chunker import chunk_naive_blocks, chunk_sections, chunk_stats, _item_char_size
 from extractor import extract_blocks
 from finalizer import apply_final_metadata, finalize_document
+import llm as llm_module
 from llm import generate_json
 from merger import merge_results
 from scorer import compute_confidence
+from retrieval import retrieve
 from structure import build_sections, flatten_sections, render_section_tree
 from utils import build_prompt, extract_json
 
@@ -26,6 +28,15 @@ st.set_page_config(
 )
 
 st.title("📄 Hierarchical Document Intelligence Pipeline")
+
+# --- Sidebar: LLM provider selection ---
+with st.sidebar:
+    st.header("LLM Provider")
+    provider = st.radio("Provider", ["openrouter", "ollama"], index=0)
+    default_model = "llama3.2" if provider == "ollama" else "openai/gpt-oss-20b:free"
+    model = st.text_input("Model", value=default_model)
+    llm_module.configure_provider(provider, model or None)
+    st.caption(f"Active model: `{llm_module.MODEL_ID}`")
 
 
 def run_step(name: str, fn):
@@ -124,6 +135,20 @@ def section_confidence(sec: Dict[str, Any]) -> float:
 def count_content_items(sec: Dict[str, Any]) -> int:
     content = sec.get("content", [])
     return len(content) if isinstance(content, list) else 0
+
+
+def render_chunk_item(item: Dict[str, Any]) -> str:
+    """Return a one-line preview string for any chunk item (raw block or section)."""
+    path = item.get("path")
+    if path and isinstance(path, list) and path:
+        return f"[{' > '.join(str(p) for p in path)}]"
+    heading = (item.get("heading") or "").strip()
+    if heading:
+        return f"[{heading}]"
+    item_type = item.get("type", "block")
+    text = (item.get("text", "") or "").strip()
+    preview = (text[:80] + "…") if len(text) > 80 else text
+    return f"({item_type}) {preview}"
 
 
 def build_section_table(sections: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -329,6 +354,7 @@ if uploaded:
     sections_tree = run_step("build_sections", lambda: build_sections(blocks))
     flat_sections = run_step("flatten_sections", lambda: flatten_sections(sections_tree))
     chunks = run_step("chunk_sections", lambda: chunk_sections(flat_sections))
+    naive_chunks = chunk_naive_blocks(blocks)
     results = run_step("process_chunks", lambda: process_chunks(chunks))
     final_output = run_step("merge_results", lambda: merge_results(results))
 
@@ -368,6 +394,53 @@ if uploaded:
     with right:
         st.subheader("🌳 Section Tree")
         st.code(render_section_tree(sections_tree), language="text")
+
+    st.divider()
+
+    # ── Chunking Comparison ────────────────────────────────────────────────────
+    st.subheader("📦 Chunking Comparison")
+
+    naive_s = chunk_stats(naive_chunks)
+    hier_s = chunk_stats(chunks)
+
+    ms1, ms2, ms3, ms4, ms5, ms6 = st.columns(6)
+    ms1.metric("Naive chunks", naive_s["count"])
+    ms2.metric("Naive avg chars", naive_s["avg_size"])
+    ms3.metric("Hier chunks", hier_s["count"])
+    ms4.metric("Hier avg chars", hier_s["avg_size"])
+    ms5.metric("Confidence", f"{final_output.get('confidence', 0.0):.2f}")
+    ms6.metric("Sections", len(section_df))
+
+    chunk_mode = st.radio(
+        "View mode",
+        ["Both", "Naive only", "Hierarchical only"],
+        horizontal=True,
+        key="chunk_mode",
+    )
+
+    def _render_chunk_cards(chunk_list: List[List[Dict[str, Any]]], label: str) -> None:
+        stats = chunk_stats(chunk_list)
+        st.markdown(f"**{label}**")
+        st.caption(
+            f"{stats['count']} chunks · avg {stats['avg_size']} chars "
+            f"· min {stats['min_size']} · max {stats['max_size']}"
+        )
+        for i, chunk in enumerate(chunk_list):
+            size = sum(_item_char_size(item) for item in chunk)
+            with st.expander(f"Chunk {i + 1} — {size} chars — {len(chunk)} items"):
+                for item in chunk:
+                    st.text(render_chunk_item(item))
+
+    if chunk_mode == "Both":
+        col_n, col_h = st.columns(2)
+        with col_n:
+            _render_chunk_cards(naive_chunks, "Naive Chunks")
+        with col_h:
+            _render_chunk_cards(chunks, "Hierarchical Chunks")
+    elif chunk_mode == "Naive only":
+        _render_chunk_cards(naive_chunks, "Naive Chunks")
+    else:
+        _render_chunk_cards(chunks, "Hierarchical Chunks")
 
     st.divider()
 
@@ -439,3 +512,57 @@ if uploaded:
 
     st.subheader("🧾 Structured JSON")
     st.json(final_output)
+
+    st.divider()
+
+    st.subheader("🔍 Retrieval Simulator — Naive vs Hierarchical")
+    st.caption("Keyword-overlap retrieval. No embeddings. Shows why structure matters.")
+
+    _DEMO_QUESTIONS = [
+        "What were the risks?",
+        "What is the conclusion?",
+        "What does the revenue section say?",
+    ]
+
+    btn_cols = st.columns(len(_DEMO_QUESTIONS))
+    for col, demo_q in zip(btn_cols, _DEMO_QUESTIONS):
+        if col.button(demo_q, key=f"demo_{demo_q}"):
+            st.session_state["retrieval_question"] = demo_q
+
+    retrieval_question = st.text_input(
+        "Or type your own question",
+        value=st.session_state.get("retrieval_question", ""),
+        key="retrieval_question_input",
+    )
+
+    if retrieval_question.strip():
+        naive_results = retrieve(retrieval_question, naive_chunks, mode="naive", top_k=1)
+        hier_results = retrieve(retrieval_question, chunks, mode="hierarchical", top_k=1)
+
+        col_naive, col_hier = st.columns(2)
+
+        with col_naive:
+            st.markdown("### Naive Retrieval")
+            if naive_results:
+                r = naive_results[0]
+                st.metric("Score", r["score"])
+                st.markdown(f"**Matched terms:** {', '.join(r['matched_terms']) or 'none'}")
+                st.markdown(f"**Context preserved:** {'✅' if r['preserves_context'] else '❌'}")
+                st.info(r["why"])
+                with st.expander("Chunk preview"):
+                    st.text(r["preview"])
+            else:
+                st.write("No chunks to search.")
+
+        with col_hier:
+            st.markdown("### Hierarchical Retrieval")
+            if hier_results:
+                r = hier_results[0]
+                st.metric("Score", r["score"])
+                st.markdown(f"**Matched terms:** {', '.join(r['matched_terms']) or 'none'}")
+                st.markdown(f"**Context preserved:** {'✅' if r['preserves_context'] else '❌'}")
+                st.success(r["why"])
+                with st.expander("Chunk preview"):
+                    st.text(r["preview"])
+            else:
+                st.write("No chunks to search.")

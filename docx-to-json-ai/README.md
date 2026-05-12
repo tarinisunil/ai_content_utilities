@@ -219,10 +219,11 @@ Handles:
 ## `llm.py`
 LLM interface layer.
 
-Uses:
-- OpenRouter
-- OpenAI-compatible API
-- deterministic generation settings
+Supports two providers, switchable via env var, CLI flag, or UI toggle:
+- **OpenRouter** — cloud-hosted models via `https://openrouter.ai/api/v1`
+- **Ollama** — local models via `http://localhost:11434/v1`
+
+Exposes `configure_provider(provider, model)` for runtime switching.
 
 ---
 
@@ -341,10 +342,67 @@ pip install -r requirements.txt
 
 ## 4. Configure environment variables
 
-Create `.env`
+Create `.env`:
 
 ```env
+# Required for OpenRouter
 OPENROUTER_API_KEY=your_key_here
+
+# Provider selection: "openrouter" (default) | "ollama"
+LLM_PROVIDER=openrouter
+
+# Per-provider model overrides (optional)
+OPENROUTER_MODEL=openai/gpt-oss-20b:free
+OLLAMA_MODEL=llama3.2
+OLLAMA_BASE_URL=http://localhost:11434/v1
+```
+
+---
+
+# 🤖 LLM Providers
+
+The pipeline supports **OpenRouter** and **Ollama** interchangeably. All three surfaces (env, CLI, UI) are equivalent — they all call `configure_provider()` before inference starts.
+
+## OpenRouter (default)
+
+Requires `OPENROUTER_API_KEY` in `.env`. Uses any model available on OpenRouter.
+
+## Ollama (local)
+
+Requires Ollama to be running locally. Pull a model first:
+
+```bash
+ollama pull llama3.2
+```
+
+## Switching providers
+
+### Via `.env`
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama3.2
+```
+
+### Via CLI flags
+
+```bash
+# Use Ollama
+python src/app.py samples/sample1.docx --provider ollama --model llama3.2
+
+# Use OpenRouter with a specific model
+python src/app.py samples/sample1.docx --provider openrouter --model openai/gpt-4o
+
+# Default (reads LLM_PROVIDER from .env)
+python src/app.py samples/sample1.docx
+```
+
+### Via UI sidebar
+
+Launch the Streamlit app and use the **LLM Provider** panel in the left sidebar to select the provider and model before uploading your document.
+
+```bash
+streamlit run src/ui.py
 ```
 
 ---
@@ -354,7 +412,14 @@ OPENROUTER_API_KEY=your_key_here
 ## CLI Mode
 
 ```bash
-python app.py samples/sample1.docx
+# Default provider (from .env)
+python src/app.py samples/sample1.docx
+
+# Ollama
+python src/app.py samples/sample1.docx --provider ollama --model llama3.2
+
+# Debug mode
+python src/app.py samples/sample1.docx --debug
 ```
 
 ---
@@ -362,7 +427,7 @@ python app.py samples/sample1.docx
 ## Interactive UI
 
 ```bash
-streamlit run ui.py
+streamlit run src/ui.py
 ```
 
 ---
