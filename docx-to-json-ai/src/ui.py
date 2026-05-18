@@ -8,7 +8,12 @@ from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 
-from chunker import chunk_naive_blocks, chunk_sections, chunk_stats, _item_char_size
+from chunker import (
+    chunk_naive_blocks,
+    chunk_sections,
+    chunk_stats,
+    item_to_text,
+)
 from extractor import extract_blocks
 from finalizer import apply_final_metadata, finalize_document
 import llm as llm_module
@@ -32,11 +37,11 @@ st.title("📄 Hierarchical Document Intelligence Pipeline")
 # --- Sidebar: LLM provider selection ---
 with st.sidebar:
     st.header("LLM Provider")
-    provider = st.radio("Provider", ["openrouter", "ollama"], index=0)
+    provider = st.radio("Provider", ["openrouter", "ollama"], index=1)
     default_model = "llama3.2" if provider == "ollama" else "openai/gpt-oss-20b:free"
     model = st.text_input("Model", value=default_model)
     llm_module.configure_provider(provider, model or None)
-    st.caption(f"Active model: `{llm_module.MODEL_ID}`")
+    st.caption(f"Active model: `{llm_module.CURRENT_MODEL}`")
 
 
 def run_step(name: str, fn):
@@ -149,6 +154,40 @@ def render_chunk_item(item: Dict[str, Any]) -> str:
     text = (item.get("text", "") or "").strip()
     preview = (text[:80] + "…") if len(text) > 80 else text
     return f"({item_type}) {preview}"
+
+
+def _render_naive_chunk_item(item: Dict[str, Any]) -> None:
+    """Render the full text of a naive text-window chunk item."""
+    st.text(item.get("text", "").strip())
+
+
+def _section_label(item: Dict[str, Any]) -> str:
+    path = item.get("path")
+    if path:
+        return f"[{' > '.join(path)}]"
+    heading = (item.get("heading") or "").strip()
+    return f"[{heading}]" if heading else "[section]"
+
+
+def _render_content_item(content_item: Dict[str, Any]) -> None:
+    ctype = content_item.get("type", "")
+    ctext = (content_item.get("text") or "").strip()
+    if ctype == "table":
+        rows = content_item.get("rows", [])
+        if rows:
+            lines = [" | ".join(str(c) for c in r) for r in rows if isinstance(r, list)]
+            st.text("\n".join(lines))
+    elif ctext:
+        prefix = "• " if ctype == "bullet" else ""
+        st.text(f"{prefix}{ctext}")
+
+
+def _render_hierarchical_chunk_item(item: Dict[str, Any]) -> None:
+    """Render a hierarchical section item with heading and full content."""
+    st.markdown(f"**{_section_label(item)}**")
+    for content_item in item.get("content", []):
+        if isinstance(content_item, dict):
+            _render_content_item(content_item)
 
 
 def build_section_table(sections: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -354,7 +393,7 @@ if uploaded:
     sections_tree = run_step("build_sections", lambda: build_sections(blocks))
     flat_sections = run_step("flatten_sections", lambda: flatten_sections(sections_tree))
     chunks = run_step("chunk_sections", lambda: chunk_sections(flat_sections))
-    naive_chunks = chunk_naive_blocks(blocks)
+    naive_chunks = chunk_naive_blocks(blocks, max_chars=1405)
     results = run_step("process_chunks", lambda: process_chunks(chunks))
     final_output = run_step("merge_results", lambda: merge_results(results))
 
@@ -426,10 +465,14 @@ if uploaded:
             f"· min {stats['min_size']} · max {stats['max_size']}"
         )
         for i, chunk in enumerate(chunk_list):
-            size = sum(_item_char_size(item) for item in chunk)
-            with st.expander(f"Chunk {i + 1} — {size} chars — {len(chunk)} items"):
+            size = sum(len(item_to_text(item)) for item in chunk)
+            header_preview = render_chunk_item(chunk[0]) if chunk else ""
+            with st.expander(f"Chunk {i + 1} — {size} chars — {len(chunk)} items  |  {header_preview}"):
                 for item in chunk:
-                    st.text(render_chunk_item(item))
+                    if item.get("type") == "naive_chunk":
+                        _render_naive_chunk_item(item)
+                    else:
+                        _render_hierarchical_chunk_item(item)
 
     if chunk_mode == "Both":
         col_n, col_h = st.columns(2)
