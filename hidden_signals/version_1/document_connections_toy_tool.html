@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Whisper Toy Tool</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #11182d;
+      --panel-2: #0f1628;
+      --text: #e8ecf8;
+      --muted: #aab3cf;
+      --border: rgba(255,255,255,0.10);
+      --accent: #8ab4ff;
+      --accent-2: #6ee7b7;
+      --warning: #fbbf24;
+      --danger: #fb7185;
+      --shadow: 0 18px 50px rgba(0,0,0,0.35);
+      --radius: 20px;
+      --radius-sm: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(138,180,255,0.16), transparent 35%),
+        radial-gradient(circle at top right, rgba(110,231,183,0.10), transparent 30%),
+        linear-gradient(180deg, #070b16 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px 48px;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      line-height: 1.05;
+      margin: 0;
+      letter-spacing: -0.04em;
+    }
+
+    .sub {
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 1.02rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .card {
+      background: rgba(17, 24, 45, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 18px 20px 0;
+    }
+
+    .card-title {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .card-body {
+      padding: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 300px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(7, 11, 22, 0.65);
+      color: var(--text);
+      padding: 16px;
+      font-size: 0.98rem;
+      line-height: 1.6;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: rgba(138,180,255,0.7);
+      box-shadow: 0 0 0 4px rgba(138,180,255,0.14);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    button, .pill {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      color: #07111f;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    .stat .value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .section {
+      margin-top: 18px;
+    }
+
+    .section h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      color: #f5f7ff;
+      letter-spacing: -0.01em;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .pair, .hub, .line-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+
+    .pair {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pair .meta,
+    .hub .meta,
+    .line-item .meta {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .hub {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .word {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      background: rgba(110,231,183,0.12);
+      color: #a7f3d0;
+      border: 1px solid rgba(110,231,183,0.22);
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 12px 2px 2px;
+      line-height: 1.6;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+
+    .example {
+      display: inline-flex;
+      margin-top: 4px;
+      color: #c7d2fe;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .stat-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>What Your Documents Whisper When Nobody's Looking</h1>
+      <div class="sub">
+        Paste a few short lines. The tool shows which words keep connecting across the lines.
+        The point is simple: the most interesting signal is not always frequency — it is connection.
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Paste your phrases</h2>
+          <div class="hint">One phrase per line. Use repeated words to reveal hidden hubs.</div>
+        </div>
+        <div class="card-body">
+          <textarea id="input" spellcheck="false">RAG and Search
+Agents and Memory
+Agents and MCP
+Memory and MCP</textarea>
+
+          <div class="controls">
+            <button id="analyzeBtn">Analyze Connections</button>
+            <button class="secondary" id="sampleBtn">Load Sample 2</button>
+            <button class="secondary" id="clearBtn">Clear</button>
+            <span class="hint">Try adding your own terms like “Retrieval”, “Planning”, or “Vector Search”.</span>
+          </div>
+
+          <div class="footer-note">
+            This toy version only looks at words. It does not understand meaning yet.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">What the tool found</h2>
+        </div>
+        <div class="card-body">
+          <div class="stat-row">
+            <div class="stat">
+              <div class="label">Lines</div>
+              <div class="value" id="lineCount">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">Unique words</div>
+              <div class="value" id="wordCount">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">Connections</div>
+              <div class="value" id="connectionCount">0</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Connections</h3>
+            <div id="pairs" class="list"></div>
+          </div>
+
+          <div class="section">
+            <h3>Hubs</h3>
+            <div id="hubs" class="list"></div>
+          </div>
+
+          <div class="section">
+            <h3>Line view</h3>
+            <div id="lines" class="list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('input');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+
+    const lineCount = document.getElementById('lineCount');
+    const wordCount = document.getElementById('wordCount');
+    const connectionCount = document.getElementById('connectionCount');
+    const pairsEl = document.getElementById('pairs');
+    const hubsEl = document.getElementById('hubs');
+    const linesEl = document.getElementById('lines');
+
+    const STOPWORDS = new Set([
+      'and', 'or', 'the', 'a', 'an', 'to', 'of', 'in', 'on', 'for', 'with', 'by', 'at', 'from',
+      'is', 'are', 'was', 'were', 'be', 'been', 'being', 'as', 'it', 'this', 'that', 'these', 'those'
+    ]);
+
+    const SAMPLE_2 = `Search and Retrieval\nRetrieval and Ranking\nRanking and Evaluation\nEvaluation and Feedback`;
+
+    function tokenize(line) {
+      return line
+        .toLowerCase()
+        .replace(/[^a-z0-9+\-\s]/g, ' ')
+        .split(/\s+/)
+        .map(w => w.trim())
+        .filter(Boolean)
+        .filter(w => !STOPWORDS.has(w));
+    }
+
+    function uniqueSorted(arr) {
+      return [...new Set(arr)].sort((a, b) => a.localeCompare(b));
+    }
+
+    function analyze() {
+      const rawLines = input.value.split('\n').map(s => s.trim()).filter(Boolean);
+      const lines = rawLines.map(tokenize).filter(tokens => tokens.length > 0);
+
+      const wordToLines = new Map();
+      const uniqueWords = new Set();
+
+      lines.forEach((tokens, idx) => {
+        uniqueSorted(tokens).forEach(token => {
+          uniqueWords.add(token);
+          if (!wordToLines.has(token)) wordToLines.set(token, new Set());
+          wordToLines.get(token).add(idx);
+        });
+      });
+
+      const pairMap = new Map();
+      const hubCounts = new Map();
+
+      for (const [word, lineSet] of wordToLines.entries()) {
+        const count = lineSet.size;
+        hubCounts.set(word, count);
+      }
+
+      lines.forEach((tokens, idx) => {
+        const unique = uniqueSorted(tokens);
+        for (let i = 0; i < unique.length; i++) {
+          for (let j = i + 1; j < unique.length; j++) {
+            const key = `${unique[i]}|${unique[j]}`;
+            pairMap.set(key, (pairMap.get(key) || 0) + 1);
+          }
+        }
+      });
+
+      const pairs = [...pairMap.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+      const hubs = [...hubCounts.entries()]
+        .filter(([, count]) => count > 1)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+      lineCount.textContent = lines.length;
+      wordCount.textContent = uniqueWords.size;
+      connectionCount.textContent = pairs.length;
+
+      pairsEl.innerHTML = '';
+      hubsEl.innerHTML = '';
+      linesEl.innerHTML = '';
+
+      if (!rawLines.length) {
+        const empty = `<div class="empty">Paste a few lines to begin. Repeated words will create connections, and shared words will become hubs.</div>`;
+        pairsEl.innerHTML = empty;
+        hubsEl.innerHTML = empty;
+        linesEl.innerHTML = empty;
+        return;
+      }
+
+      if (pairs.length === 0) {
+        pairsEl.innerHTML = `<div class="empty">No connections yet. Try adding the same word to multiple lines, like “Agents” or “Memory”.</div>`;
+      } else {
+        pairs.forEach(([key, count]) => {
+          const [a, b] = key.split('|');
+          const div = document.createElement('div');
+          div.className = 'pair';
+          div.innerHTML = `<div><strong>${escapeHtml(a)} ↔ ${escapeHtml(b)}</strong><div class="meta">Shared across ${count} line${count > 1 ? 's' : ''}</div></div><span class="badge">connected</span>`;
+          pairsEl.appendChild(div);
+        });
+      }
+
+      if (hubs.length === 0) {
+        hubsEl.innerHTML = `<div class="empty">No hubs yet. A hub is a word that appears in more than one line.</div>`;
+      } else {
+        hubs.forEach(([word, count]) => {
+          const div = document.createElement('div');
+          div.className = 'hub';
+          div.innerHTML = `<div><div class="word">${escapeHtml(word)}</div><div class="meta">Appears in ${count} line${count > 1 ? 's' : ''}</div></div><span class="badge">hub</span>`;
+          hubsEl.appendChild(div);
+        });
+      }
+
+      rawLines.forEach((line, idx) => {
+        const tokens = tokenize(line);
+        const shared = uniqueSorted(tokens).filter(word => wordToLines.get(word)?.size > 1);
+        const div = document.createElement('div');
+        div.className = 'line-item';
+        div.innerHTML = `
+          <div><strong>Line ${idx + 1}:</strong> ${escapeHtml(line)}</div>
+          <div class="meta">Words: ${tokens.length ? tokens.map(escapeHtml).join(', ') : 'none'}${shared.length ? ` · Shared words: ${shared.map(escapeHtml).join(', ')}` : ''}</div>
+        `;
+        linesEl.appendChild(div);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    analyzeBtn.addEventListener('click', analyze);
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      analyze();
+      input.focus();
+    });
+    sampleBtn.addEventListener('click', () => {
+      input.value = SAMPLE_2;
+      analyze();
+      input.focus();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key.toLowerCase() === 'enter') analyze();
+      }
+    });
+
+    analyze();
+  </script>
+</body>
+</html>
