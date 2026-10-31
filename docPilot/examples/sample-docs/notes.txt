@@ -1,0 +1,42 @@
+===============================================================================
+                       INTERNAL DEVELOPMENT NOTES & SCRATCHPAD
+===============================================================================
+
+[ACTIVE SPRINT / CURRENT FOCUS]
+-------------------------------------------------------------------------------
+* Optimization of the core parsing logic to resolve linear memory scaling.
+* Investigating intermittent timeout leaks reported during parallel execution.
+* Finalizing the schema validation ruleset for version 1.2.0 compatibility.
+
+[PENDING REFACTORING TASKS]
+-------------------------------------------------------------------------------
+[ ] Move hardcoded runtime defaults out of the Core Engine and into config templates.
+[ ] Abstract the local cache system directory path logic to support cross-OS boundaries.
+[ ] Introduce structured error subclasses to eliminate generic execution crashes.
+[ ] Rewrite the standard console stream output module to handle concurrent streams cleanly.
+
+[ENVIRONMENT TIPS & CHEATSHEETS]
+-------------------------------------------------------------------------------
+* Fast Reset Script:
+  rm -rf .cache/ .run_state/ && docker-compose down -v && docker-compose up -d
+
+* Local Stress Test Command:
+  npm run test:stress -- --workers=8 --duration=300s --log-level=error
+
+* Debug Mode Launch:
+  APP_ENV=development LOG_LEVEL=debug PORT=9000 node --inspect src/engine/index.js
+
+[UPCOMING DEPRECATIONS]
+-------------------------------------------------------------------------------
+* The legacy command line flag `--legacy-parse` will be fully removed in version 2.0.0.
+* Synchroneous file reader fallbacks are scheduled for removal next quarter. Use async.
+
+[USEFUL LINKS & INTERNAL RESOURCES]
+-------------------------------------------------------------------------------
+* Local Metrics Dashboard: http://localhost:8080/metrics
+* Core Architecture Design Doc: Refer to ARCHITECTURE.md in the root folder.
+* Continuous Integration Workflow: https://github.com
+
+===============================================================================
+             Always update CHANGELOG.md before tagging production builds.
+===============================================================================

@@ -1,0 +1,45 @@
+===============================================================================
+                     PROJECT CREDITS & ACKNOWLEDGEMENTS
+===============================================================================
+
+This software is made possible by the dedication of its open-source contributors
+and the foundational libraries listed below. 
+
+[CORE PROJECT AUTHORS]
+-------------------------------------------------------------------------------
+* Lead Architect & Maintainer:  Jane Doe <jane.doe@example.com>
+* Core Engine Developer:        John Smith <john.smith@example.com>
+* DevOps & Infrastructure:       Alex Chen <alex.chen@example.com>
+
+[COMMUNITY CONTRIBUTORS]
+-------------------------------------------------------------------------------
+Special thanks to our community members who have submitted bug fixes, reviewed
+documentation, and helped optimize performance:
+* @dev_wizard (Fixed parallel execution memory leaks)
+* @async_coder (Contributed structural JSON output reporter)
+* @sec_guard   (Audited environmental variable ingestion pathways)
+
+[THIRD-PARTY OPEN SOURCE LIBRARIES]
+-------------------------------------------------------------------------------
+The following software packages are statically linked, compiled, or utilized
+within this ecosystem:
+
+* FastParserEngine v4.2.1
+  - License: MIT
+  - Purpose: High-speed normalization of raw operational definitions.
+  - Source:  https://github.com
+
+* AsyncQueuePool v1.8.0
+  - License: Apache-2.0
+  - Purpose: Thread-safe runtime worker pool concurrency management.
+  - Source:  https://github.com
+
+* LogSchemaValidator v2.0.4
+  - License: BSD-3-Clause
+  - Purpose: Internal scheme validation for cross-platform log outputs.
+  - Source:  https://github.com
+
+===============================================================================
+  To contribute to this list, please submit a Pull Request following the
+  guidelines outlined in CONTRIBUTING.md. Thank you for supporting open source!
+===============================================================================

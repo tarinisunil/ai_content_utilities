@@ -1,0 +1,170 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Core Engine Execution API",
+    "description": "REST API interface for running remote data evaluations, schema validation, and health orchestration status.",
+    "version": "1.2.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/v1",
+      "description": "Local development runtime server"
+    },
+    {
+      "url": "https://core-engine.internal",
+      "description": "Production gateway cluster"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Retrieve orchestrator health status",
+        "description": "Used by system orchestrators like Kubernetes or Docker to evaluate operational readiness.",
+        "responses": {
+          "200": {
+            "description": "System is completely operational and accepting data traffic.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/execute": {
+      "post": {
+        "summary": "Submit data configuration matrix for in-memory execution",
+        "description": "Triggers the stateless Parser Engine to normalize inputs, validate specifications, and compile tree assets.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Execution evaluation successfully processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure due to malformed structural payload input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Execution timeout exceeded internal parameter threshold settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "uptime": {
+            "type": "number",
+            "example": 86420.5
+          },
+          "activeWorkers": {
+            "type": "integer",
+            "example": 4
+          }
+        }
+      },
+      "JobSubmission": {
+        "type": "object",
+        "required": ["configId", "payload"],
+        "properties": {
+          "configId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": {
+              "workers": 8,
+              "verbose": true
+            }
+          }
+        }
+      },
+      "JobResult": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "f8e7d6c5-b4a3-2f1e-0d9c-8b7a6f5e4d3c"
+          },
+          "status": {
+            "type": "string",
+            "example": "completed"
+          },
+          "durationMs": {
+            "type": "integer",
+            "example": 142
+          },
+          "summary": {
+            "type": "object",
+            "example": {
+              "totalEvaluations": 45,
+              "passed": 45,
+              "failed": 0
+            }
+          }
+        }
+      },
+      "ErrorPayload": {
+        "type": "object",
+        "properties": {
+          "errorCode": {
+            "type": "string",
+            "example": "ERR_CONFIG_INVALID"
+          },
+          "message": {
+            "type": "string",
+            "example": "The configuration file syntax violates schema rules at root property 'workers'."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-31T20:08:00Z"
+          }
+        }
+      }
+    }
+  }
+}
