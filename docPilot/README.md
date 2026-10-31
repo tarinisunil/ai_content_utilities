@@ -1,8 +1,8 @@
 # DocPilot
 
-**A local-first documentation search and knowledge assistant — currently in planning.**
+**A local-first documentation search and knowledge assistant — in early development.**
 
-> **Project status: Planning / pre-v0.1.** DocPilot is not yet an implemented or production-ready application. The features and commands described below are goals unless explicitly marked as available.
+> **Project status: Early development / pre-v0.1.** Basic Markdown ingestion is available. Search, indexing, answer generation, and a standalone CLI are still planned. DocPilot is not production-ready.
 
 DocPilot is an open-source engineering project to explore how conventional search, embeddings, hybrid retrieval, retrieval-augmented generation (RAG), and eventually bounded agentic workflows can make technical documentation easier to navigate and verify.
 
@@ -86,16 +86,81 @@ These are **proposed choices**, not validated benchmarks or installed dependenci
 
 ## Getting started
 
-**There is no working installation flow yet.** The initial implementation milestone is Markdown ingestion. Once code exists, this section will document prerequisites, installation, sample input, indexing, querying, and tests with verified commands.
+DocPilot currently supports loading local Markdown documents. Search, indexing, and a standalone command-line interface are not implemented yet. You can run the ingestion example through the test suite.
 
-To follow or contribute to the design today:
+### 1. Open the project directory
 
-1. Read the [proposed architecture](ARCHITECTURE.md).
-2. Review the roadmap above and identify assumptions worth testing.
-3. Start with the Markdown ingestion milestone: file discovery, structural parsing, source references, and tests.
-4. Capture each experiment's inputs, configuration, measurements, and limitations.
+Run the following commands from the repository root—the directory containing `README.md` and `requirements.txt`. You will need Python installed and available in your terminal.
 
-### Suggested repository layout (not yet implemented)
+### 2. Create and activate a virtual environment
+
+A virtual environment keeps this project's Python packages separate from other projects.
+
+**macOS / Linux:**
+
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
+If your system uses `python3` instead of `python`, use `python3 -m venv venv` to create the environment.
+
+**Windows PowerShell:**
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+Create the environment before activating it. If `source venv/bin/activate` reports "no such file or directory," confirm you are in the project root and run `python -m venv venv` first.
+
+For later sessions, you only need to activate the existing environment.
+
+### 3. Install dependencies
+
+With the virtual environment active:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+The current dependency file installs `pytest`, the tool used to run the tests. Markdown loading uses Python's standard library; no API keys or external services are required.
+
+### 4. Run the tests
+
+```bash
+python -m pytest -v
+```
+
+The tests cover loading sample documents, ignoring empty files, finding Markdown files in nested directories, and ignoring non-Markdown files.
+
+### 5. Run the ingestion example with visible output
+
+```bash
+python -m pytest tests/test_loader.py::test_load_sample_documents -v -s
+```
+
+The example loads Markdown files from `examples/sample-docs/` and prints each document's title, relative source path, character count, and extension, followed by the total number loaded.
+
+The loader uses the first `# ` heading as the document title, falling back to the filename without its extension when no such heading exists.
+
+To run all tests with printed output:
+
+```bash
+python -m pytest -v -s
+```
+
+`-v` shows individual test names; `-s` displays output that pytest normally hides.
+
+### 6. Leave the virtual environment
+
+```bash
+deactivate
+```
+
+### Repository layout
+
+The ingestion code, tests, and sample documents are available. The layout below also includes proposed directories for future work.
 
 ```text
 docpilot/
