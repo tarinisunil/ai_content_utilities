@@ -126,7 +126,17 @@ python -m pip install -r requirements.txt
 
 The current dependency file installs `pytest`, the tool used to run the tests. Markdown loading uses Python's standard library; no API keys or external services are required.
 
-### 4. Run the tests
+### 4. Install the package in editable mode
+
+The ingestion code lives under `src/docpilot/`. Installing it in editable mode makes the `docpilot` package importable (for example, from the `examples/` scripts) without copying files:
+
+```bash
+pip install -e .
+```
+
+If you see `ModuleNotFoundError: No module named 'docpilot'`, run this command before trying again.
+
+### 5. Run the tests
 
 ```bash
 python -m pytest -v
@@ -134,7 +144,7 @@ python -m pytest -v
 
 The tests cover loading sample documents, ignoring empty files, finding Markdown files in nested directories, and ignoring non-Markdown files.
 
-### 5. Run the ingestion example with visible output
+### 6. Run the ingestion example with visible output
 
 ```bash
 python -m pytest tests/test_loader.py::test_load_sample_documents -v -s
@@ -152,7 +162,15 @@ python -m pytest -v -s
 
 `-v` shows individual test names; `-s` displays output that pytest normally hides.
 
-### 6. Leave the virtual environment
+### 7. Run the chunking example
+
+```bash
+python -m examples.run_chunking
+```
+
+This loads the sample documents from `examples/sample-docs/`, splits their content into chunks (default `max_size=100` characters), and prints each chunk's title, source, index, length, and content.
+
+### 8. Leave the virtual environment
 
 ```bash
 deactivate

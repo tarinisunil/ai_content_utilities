@@ -71,3 +71,13 @@ You can customize the runtime behavior by adding a `microtest.config.json` file 
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## Python Example
+
+This section demonstrates a Python function.
+
+```python
+def greet():
+    # Print a greeting
+    print("Hello")
+```
