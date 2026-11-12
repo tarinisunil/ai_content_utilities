@@ -28,7 +28,15 @@ for chunk in chunks:
     print(f"Heading     : {chunk['heading']}")
     print(f"Chunk Index : {chunk['chunk_index']}")
     print(f"Length      : {len(chunk['content'])} characters")
-
+    print(f"Chunk ID    : {chunk['chunk_id']}")
+    print(f"Block Type     : {chunk['block_type']}")
+    print(f"Block ID       : {chunk['block_id']}")
+    print(f"Fragment Index : {chunk['fragment_index']}")
+    print(f"Fragment Count : {chunk['fragment_count']}")
+    print(
+        "Heading Path:",
+        " > ".join(chunk["heading_path"])
+    )
     print("-" * 60)
     print(chunk["content"])
 

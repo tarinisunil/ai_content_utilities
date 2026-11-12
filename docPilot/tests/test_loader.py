@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from docpilot.ingestion.loader import load_markdown_files
-
+from docpilot.ingestion.loader import extract_title
 
 # Locate the project root
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -70,3 +70,55 @@ def test_ignore_non_markdown_files(tmp_path):
     documents = load_markdown_files(str(tmp_path))
 
     assert len(documents) == 0
+
+def test_title_after_backtick_fence():
+    fence = "`" * 3
+
+    content = (
+        f"{fence}markdown\n"
+        "# Example Heading\n"
+        f"{fence}\n"
+        "# Actual Document Title\n"
+    )
+
+    assert extract_title(content, "fallback") == "Actual Document Title"
+
+
+def test_title_after_tilde_fence():
+    fence = "~" * 3
+
+    content = (
+        f"{fence}markdown\n"
+        "# Example Heading\n"
+        f"{fence}\n"
+        "# Real Title\n"
+    )
+
+    assert extract_title(content, "fallback") == "Real Title"
+
+
+def test_longer_fence_with_shorter_inner_fence():
+    opening = "`" * 4
+    shorter = "`" * 3
+
+    content = (
+        f"{opening}markdown\n"
+        f"{shorter}\n"
+        "# Not the Document Title\n"
+        f"{opening}\n"
+        "# Actual Title\n"
+    )
+
+    assert extract_title(content, "fallback") == "Actual Title"
+
+
+def test_title_fallback_when_no_h1():
+    content = (
+        "## Installation\n"
+        "Install the application.\n"
+    )
+
+    assert extract_title(content, "installation-guide") == (
+        "installation-guide"
+    )
+
